@@ -12,13 +12,37 @@ const app = express();
 // app.use(express.json());
 
 app.post("/webhook", line.middleware(config), (req, res) => {
-  Promise.all(req.body.events.map(handleEvent))
-    .then((result) => res.json(result))
-    .catch((err) => {
-      console.error(err);
-      res.status(500).end();
-    });
+  console.log("=== WEBHOOK RECEIVED ===");
+  console.log("body:", JSON.stringify(req.body, null, 2));
+
+  Promise.all(req.body.events.map(async (event) => {
+    console.log("=== EVENT RECEIVED ===");
+    console.log("type:", event.type);
+
+    if (event.type === "message" && event.message.type === "text") {
+      console.log("message:", event.message.text);
+
+      const client = new line.Client(config);
+
+      return client.replyMessage(event.replyToken, {
+        type: "text",
+        text: `あなたは「${event.message.text}」と送りましたね。`
+      })
+      .then(() => {
+        console.log("=== REPLY SENT ===");
+      })
+      .catch((err) => {
+        console.error("=== REPLY ERROR ===", err);
+      });
+    }
+  }))
+  .then(() => res.sendStatus(200))
+  .catch((err) => {
+    console.error("=== WEBHOOK ERROR ===", err);
+    res.status(500).end();
+  });
 });
+
 
 // ⭕ webhook より後ろに置く
 app.use(express.json());
