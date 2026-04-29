@@ -7,7 +7,8 @@ const config = {
 };
 
 const app = express();
-app.use(express.json());
+
+// ❌ ここに express.json() を置いてはいけない
 
 app.post("/webhook", line.middleware(config), (req, res) => {
   Promise.all(req.body.events.map(handleEvent))
@@ -17,6 +18,9 @@ app.post("/webhook", line.middleware(config), (req, res) => {
       res.status(500).end();
     });
 });
+
+// ⭕ 必要ならここで使う（webhook 以外のルート用）
+app.use(express.json());
 
 async function handleEvent(event) {
   if (event.type !== "message" || event.message.type !== "text") {
