@@ -8,7 +8,8 @@ const config = {
 
 const app = express();
 
-// ❌ ここに express.json() を置いてはいけない
+// ❌ express.json() をここに置くと署名検証が壊れる
+// app.use(express.json());
 
 app.post("/webhook", line.middleware(config), (req, res) => {
   Promise.all(req.body.events.map(handleEvent))
@@ -19,7 +20,7 @@ app.post("/webhook", line.middleware(config), (req, res) => {
     });
 });
 
-// ⭕ 必要ならここで使う（webhook 以外のルート用）
+// ⭕ webhook より後ろに置く
 app.use(express.json());
 
 async function handleEvent(event) {
