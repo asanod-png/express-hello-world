@@ -217,3 +217,40 @@ app.get("/remaining-days/:lineUserId", async (req, res) => {
     remaining,
   });
 });
+
+// 残り有給日数を返すAPI
+app.get("/remaining-days/:lineUserId", async (req, res) => {
+  const lineUserId = req.params.lineUserId;
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const { data: userData } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", lineUserId)
+    .single();
+
+  const { data: paidLeaves } = await supabase
+    .from("paid_leaves")
+    .select("*")
+    .eq("user_id", lineUserId);
+
+  const { data: usedDays } = await supabase
+    .from("used_days")
+    .select("*")
+    .eq("user_id", lineUserId);
+
+  const totalGranted = paidLeaves.reduce((sum, row) => sum + row.granted_days, 0);
+  const totalUsed = usedDays.reduce((sum, row) => sum + row.amount, 0);
+  const carryOver = userData?.carr_over || 0;
+
+  const remaining = totalGranted + carryOver - totalUsed;
+
+  res.json({
+    user_id: lineUserId,
+    totalGranted,
+    totalUsed,
+    carryOver,
+    remaining,
+  });
+});
