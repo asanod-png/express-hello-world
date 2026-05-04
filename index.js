@@ -140,3 +140,27 @@ app.get('/remaining-days/:lineUserId', async (req, res) => {
     return res.json({ error: 'Unexpected error', detail: err.message });
   }
 });
+
+app.post("/webhook", line.middleware(config), async (req, res) => {
+  const events = req.body.events;
+
+  for (const event of events) {
+    if (event.type === "message" && event.message.type === "text") {
+      const userId = event.source.userId;
+
+      // あなたの API を叩く
+      const response = await fetch(
+        `https://express-hello-world-bl3n.onrender.com/remaining-days/${userId}`
+      );
+      const data = await response.json();
+
+      // LINE に返信
+      await client.replyMessage(event.replyToken, {
+        type: "text",
+        text: `あなたの残り有給日数は ${data.remaining} 日です`
+      });
+    }
+  }
+
+  res.status(200).end();
+});
