@@ -222,7 +222,10 @@ app.get("/remaining-days/:lineUserId", async (req, res) => {
 app.get("/remaining-days/:lineUserId", async (req, res) => {
   const lineUserId = req.params.lineUserId;
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
   const { data: userData } = await supabase
     .from("users")
