@@ -77,3 +77,66 @@ async function handleEvent(event) {
 app.listen(10000, () => {
   console.log("LINE Bot is running!");
 });
+
+// ------------------------------
+// 残日数を計算する API
+// ------------------------------
+app.get('/remaining-days/:lineUserId', async (req, res) => {
+  const lineUserId = req.params.lineUserId;
+
+  try {
+    // ① users テーブルからユーザー情報を取得
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', lineUserId)
+      .single();
+
+    if (userError || !user) {
+      return res.json({ error: 'User not found' });
+    }
+
+    // ② paid_leaves（付与された有給）を取得
+    const { data: paidLeaves, error: paidError } = await supabase
+      .from('paid_leaves')
+      .select('*')
+      .eq('user_id', lineUserId);
+
+    if (paidError) {
+      return res.json({ error: 'Failed to fetch paid leaves' });
+    }
+
+    // 付与された日数の合計
+    const totalGranted = paidLeaves.reduce((sum, row) => sum + row.granted_days, 0);
+
+    // ③ used_days（使った有給）を取得
+    const { data: usedDays, error: usedError } = await supabase
+      .from('used_days')
+      .select('*')
+      .eq('user_id', lineUserId);
+
+    if (usedError) {
+      return res.json({ error: 'Failed to fetch used days' });
+    }
+
+    // 使用した日数の合計
+    const totalUsed = usedDays.reduce((sum, row) => sum + row.days, 0);
+
+    // ④ 繰越日数（users.carr_over）
+    const carryOver = user.carr_over || 0;
+
+    // ⑤ 残日数を計算
+    const remaining = totalGranted - totalUsed + carryOver;
+
+    return res.json({
+      user_id: lineUserId,
+      totalGranted,
+      totalUsed,
+      carryOver,
+      remaining
+    });
+
+  } catch (err) {
+    return res.json({ error: 'Unexpected error', detail: err.message });
+  }
+});
