@@ -1,3 +1,9 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 import express from "express";
 import line from "@line/bot-sdk";
 
@@ -5,11 +11,20 @@ const config = {
   channelSecret: process.env.CHANNEL_SECRET,
   channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN
 };
-
+const client = new line.Client(config);
 const app = express();
 
 // ❌ express.json() をここに置くと署名検証が壊れる
 // app.use(express.json());
+
+app.get("/test-supabase", async (req, res) => {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .limit(1);
+
+  res.json({ data, error });
+});
 
 app.post("/webhook", line.middleware(config), (req, res) => {
   console.log("=== WEBHOOK RECEIVED ===");
