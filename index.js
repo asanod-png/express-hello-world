@@ -164,3 +164,56 @@ app.post("/webhook", line.middleware(config), async (req, res) => {
 
   res.status(200).end();
 });
+
+// 残り有給日数を返すAPI
+app.get("/remaining-days/:lineUserId", async (req, res) => {
+  const lineUserId = req.params.lineUserId;
+
+  // Supabaseクライアントを初期化
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // usersテーブルからユーザー情報を取得
+  const { data: userData, error: userError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", lineUserId)
+    .single();
+
+  if (userError || !userData) {
+    return res.json({ error: "User not found" });
+  }
+
+  // paid_leavesテーブルから付与日数を取得
+  const { data: paidLeaves, error: paidError } = await supabase
+    .from("paid_leaves")
+    .select("*")
+    .eq("user_id", lineUserId);
+
+  if (paidError) {
+    return res.json({ error: "Failed to fetch paid leaves" });
+  }
+
+  // used_daysテーブルから使用日数を取得
+  const { data: usedDays, error: usedError } = await supabase
+    .from("used_days")
+    .select("*")
+    .eq("user_id", lineUserId);
+
+  if (usedError) {
+    return res.json({ error: "Failed to fetch used days" });
+  }
+
+  // 合計計算
+  const totalGranted = paidLeaves.reduce((sum, row) => sum + row.granted_days, 0);
+  const totalUsed = usedDays.reduce((sum, row) => sum + row.amount, 0);
+  const carryOver = userData.carr_over || 0;
+  const remaining = totalGranted + carryOver - totalUsed;
+
+  res.json({
+    user_id: lineUserId,
+    totalGranted,
+    totalUsed,
+    carryOver,
+    remaining,
+  });
+});
