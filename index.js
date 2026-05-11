@@ -26,6 +26,46 @@ app.post("/webhook", line.middleware(config), async (req, res) => {
       const userId = event.source.userId;
       const text = event.message.text.trim();
 
+// ------------------------------
+// 「半休 5/22」形式の解析
+// ------------------------------
+const halfMatch = text.match(/半休\s*(\d{1,2})[\/\-](\d{1,2})/);
+
+if (halfMatch) {
+  const month = halfMatch[1];
+  const day = halfMatch[2];
+
+  const year = new Date().getFullYear();
+  const date = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+  const amount = 0.5;
+
+  // Supabase に登録
+  await fetch("https://express-hello-world-bl3n.onrender.com/use-day", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      date,
+      amount
+    })
+  });
+
+  // 残り有給を取得
+  const response = await fetch(
+    `https://express-hello-world-bl3n.onrender.com/remaining-days/${userId}`
+  );
+  const data = await response.json();
+
+  // LINE に返信
+  await client.replyMessage(event.replyToken, {
+    type: "text",
+    text: `${month}月${day}日の半休（0.5日）を登録しました。\n残り有給は ${data.remaining} 日です。`
+  });
+
+  continue;
+}
+
       // ------------------------------
       // 「有給 5/20」形式の解析
       // ------------------------------
