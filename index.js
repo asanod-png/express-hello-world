@@ -27,6 +27,43 @@ app.post("/webhook", line.middleware(config), async (req, res) => {
       const text = event.message.text.trim();
 
 // ------------------------------
+// 「取り消し 5/22」形式の解析
+// ------------------------------
+const undoMatch = text.match(/取り消し\s*(\d{1,2})[\/\-](\d{1,2})/);
+
+if (undoMatch) {
+  const month = undoMatch[1];
+  const day = undoMatch[2];
+
+  const year = new Date().getFullYear();
+  const date = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+  // Supabase から該当レコードを削除
+  await fetch("https://express-hello-world-bl3n.onrender.com/use-day", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: userId,
+      date
+    })
+  });
+
+  // 残り有給を取得
+  const response = await fetch(
+    `https://express-hello-world-bl3n.onrender.com/remaining-days/${userId}`
+  );
+  const data = await response.json();
+
+  // LINE に返信
+  await client.replyMessage(event.replyToken, {
+    type: "text",
+    text: `${month}月${day}日の登録を取り消しました。\n残り有給は ${data.remaining} 日です。`
+  });
+
+  continue;
+}
+
+// ------------------------------
 // 「半休 5/22」形式の解析
 // ------------------------------
 const halfMatch = text.match(/半休\s*(\d{1,2})[\/\-](\d{1,2})/);
@@ -210,6 +247,34 @@ app.post("/use-day", async (req, res) => {
     }
 
     return res.json({ success: true, inserted: data });
+
+  } catch (err) {
+    return res.json({ error: "Unexpected error", detail: err.message });
+  }
+});
+
+// ------------------------------
+// 有給を取り消す API
+// ------------------------------
+app.delete("/use-day", async (req, res) => {
+  const { user_id, date } = req.body;
+
+  if (!user_id || !date) {
+    return res.json({ error: "Missing parameters" });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("used_days")
+      .delete()
+      .eq("user_id", user_id)
+      .eq("date", date);
+
+    if (error) {
+      return res.json({ error: "Failed to delete used day", detail: error });
+    }
+
+    return res.json({ success: true });
 
   } catch (err) {
     return res.json({ error: "Unexpected error", detail: err.message });
