@@ -103,3 +103,34 @@ app.get("/remaining-days/:lineUserId", async (req, res) => {
 app.listen(10000, () => {
   console.log("LINE Bot is running!");
 });
+// ------------------------------
+// 有給を登録する API
+// ------------------------------
+app.post("/use-day", async (req, res) => {
+  const { user_id, date, amount } = req.body;
+
+  if (!user_id || !date || !amount) {
+    return res.json({ error: "Missing parameters" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("used_days")
+      .insert([
+        {
+          user_id,
+          date,
+          amount
+        }
+      ]);
+
+    if (error) {
+      return res.json({ error: "Failed to insert used day", detail: error });
+    }
+
+    return res.json({ success: true, inserted: data });
+
+  } catch (err) {
+    return res.json({ error: "Unexpected error", detail: err.message });
+  }
+});
