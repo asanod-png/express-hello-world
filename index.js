@@ -64,6 +64,48 @@ if (undoMatch) {
 }
 
 // ------------------------------
+// 「5月の有給」形式の解析
+// ------------------------------
+const monthListMatch = text.match(/(\d{1,2})月の有給/);
+
+if (monthListMatch) {
+  const month = monthListMatch[1];
+  const year = new Date().getFullYear();
+  const monthStr = month.padStart(2, "0");
+
+  const response = await fetch(
+    `https://express-hello-world-bl3n.onrender.com/month-list/${userId}/${year}-${monthStr}`
+  );
+  const data = await response.json();
+
+  if (!data || data.length === 0) {
+    await client.replyMessage(event.replyToken, {
+      type: "text",
+      text: `${month}月の有給はありません。`
+    });
+    continue;
+  }
+
+  const total = data.reduce((sum, row) => sum + row.amount, 0);
+
+  const list = data
+    .map((row) => {
+      const d = new Date(row.date);
+      const day = d.getDate();
+      const type = row.amount === 1 ? "有給 1日" : "半休 0.5日";
+      return `- ${month}/${day} ${type}`;
+    })
+    .join("\n");
+
+  await client.replyMessage(event.replyToken, {
+    type: "text",
+    text: `${month}月の有給は ${total} 日です\n${list}`
+  });
+
+  continue;
+}
+      
+// ------------------------------
 // 「半休 5/22」形式の解析
 // ------------------------------
 const halfMatch = text.match(/半休\s*(\d{1,2})[\/\-](\d{1,2})/);
