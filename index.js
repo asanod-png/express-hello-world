@@ -11,10 +11,13 @@ const config = {
   channelSecret: process.env.CHANNEL_SECRET,
 };
 
+// LINEクライアント
+const client = new line.Client(config);
+
 // Supabase設定
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// ★ webhook だけ raw body を受け取る（これが超重要）
+// ★ webhook は raw body（署名検証のため）
 app.post(
   "/webhook",
   bodyParser.raw({ type: "*/*" }),
@@ -31,24 +34,51 @@ app.post(
           const match = userMessage.match(/(\d+)月の有給/);
           if (match) {
             const month = parseInt(match[1], 10);
+            const userId = event.source.userId;
 
-            // Supabaseからデータ取得
-            const { data, error } = await supabase
-              .from("paid_holidays")
-              .select("*")
-              .eq("month", month)
+            // ① paid_leaves から付与日数を取得
+            const { data: leaveData, error: leaveError } = await supabase
+              .from("paid_leaves")
+              .select("granted_days")
+              .eq("user_id", userId)
               .single();
 
-            if (error || !data) {
+            if (leaveError || !leaveData) {
               await client.replyMessage(event.replyToken, {
                 type: "text",
-                text: `${month}月のデータが見つかりませんでした。`,
+                text: "有給の付与データが見つかりませんでした。",
               });
               continue;
             }
 
-            const remaining = data.total - data.used;
+            const grantedDays = leaveData.granted_days;
 
+            // ② used_days から指定月の使用日数を集計
+            const { data: usedRows, error: usedError } = await supabase
+              .from("used_days")
+              .select("amount, date")
+              .eq("user_id", userId);
+
+            if (usedError) {
+              await client.replyMessage(event.replyToken, {
+                type: "text",
+                text: "使用データの取得に失敗しました。",
+              });
+              continue;
+            }
+
+            // 指定月の使用日数を合計
+            const usedSum = usedRows
+              .filter((row) => {
+                const d = new Date(row.date);
+                return d.getMonth() + 1 === month;
+              })
+              .reduce((sum, row) => sum + Number(row.amount), 0);
+
+            // ③ 残日数を計算
+            const remaining = grantedDays - usedSum;
+
+            // ④ LINE に返す
             await client.replyMessage(event.replyToken, {
               type: "text",
               text: `${month}月の有給残りは ${remaining} 日です。`,
@@ -64,9 +94,6 @@ app.post(
     }
   }
 );
-
-// LINEクライアント
-const client = new line.Client(config);
 
 // サーバー起動
 app.listen(3000, () => {
