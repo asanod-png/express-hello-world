@@ -208,6 +208,31 @@ app.use(express.json());
 // ------------------------------
 app.get("/remaining-days/:lineUserId", async (req, res) => {
   const lineUserId = req.params.lineUserId;
+  // ------------------------------
+// 月ごとの有給一覧を返す API
+// ------------------------------
+app.get("/month-list/:user_id/:yearMonth", async (req, res) => {
+  const { user_id, yearMonth } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from("used_days")
+      .select("*")
+      .eq("user_id", user_id)
+      .like("date", `${yearMonth}-%`)
+      .order("date", { ascending: true });
+
+    if (error) {
+      return res.json({ error: "Failed to fetch month list", detail: error });
+    }
+
+    return res.json(data);
+
+  } catch (err) {
+    return res.json({ error: "Unexpected error", detail: err.message });
+  }
+});
+
 // ------------------------------
 // 月ごとの有給一覧を返す API
 // ------------------------------
