@@ -36,10 +36,10 @@ app.post(
             const month = parseInt(match[1], 10);
             const userId = event.source.userId;
 
-            // ① paid_leaves から付与日数を取得
+            // ① paid_leaves から付与日数と年度範囲を取得
             const { data: leaveData, error: leaveError } = await supabase
               .from("paid_leaves")
-              .select("granted_days")
+              .select("granted_days, granted_date, expire_date")
               .eq("user_id", userId)
               .single();
 
@@ -52,8 +52,10 @@ app.post(
             }
 
             const grantedDays = leaveData.granted_days;
+            const granted = new Date(leaveData.granted_date);
+            const expire = new Date(leaveData.expire_date);
 
-            // ② used_days から指定月の使用日数を集計
+            // ② used_days から全使用データを取得
             const { data: usedRows, error: usedError } = await supabase
               .from("used_days")
               .select("amount, date")
@@ -67,18 +69,24 @@ app.post(
               continue;
             }
 
-            // 指定月の使用日数を合計
+            // ③ 指定月 ＋ 年度内 の使用日数を合計
             const usedSum = usedRows
               .filter((row) => {
                 const d = new Date(row.date);
-                return d.getMonth() + 1 === month;
+                const monthOfRow = d.getMonth() + 1;
+
+                return (
+                  d >= granted &&
+                  d <= expire &&
+                  monthOfRow === month
+                );
               })
               .reduce((sum, row) => sum + Number(row.amount), 0);
 
-            // ③ 残日数を計算
+            // ④ 残日数を計算
             const remaining = grantedDays - usedSum;
 
-            // ④ LINE に返す
+            // ⑤ LINE に返す
             await client.replyMessage(event.replyToken, {
               type: "text",
               text: `${month}月の有給残りは ${remaining} 日です。`,
